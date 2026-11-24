@@ -31,7 +31,7 @@ npm run dev           # API on http://localhost:4000, app on http://localhost:51
 npm test              # backend and frontend tests
 ```
 
-The real world is drawn by CesiumJS. For real 3D buildings and terrain (Google Photorealistic 3D Tiles), create a free token at [ion.cesium.com](https://ion.cesium.com), add the asset "Google Photorealistic 3D Tiles" to your assets, then copy `frontend/.env.example` to `frontend/.env` and set `VITE_CESIUM_ION_TOKEN`. Without a token the simulator falls back to Esri satellite imagery, streamed through the backend. Nothing is stored on disk, so internet is needed while flying. See the imagery licence note in the [roadmap](./docs/PHASE-1-AND-ROADMAP.md).
+The real world is drawn by CesiumJS. For real terrain, sharp aerial imagery and 3D buildings, create a free token at [ion.cesium.com](https://ion.cesium.com) (Access Tokens > Default Token), then copy `frontend/.env.example` to `frontend/.env` and set `VITE_CESIUM_ION_TOKEN`. Without a token the simulator falls back to Esri satellite imagery, streamed through the backend. Nothing is stored on disk, so internet is needed while flying.
 
 ## Keyboard controls
 
@@ -52,7 +52,7 @@ The real world is drawn by CesiumJS. For real 3D buildings and terrain (Google P
 The backend serves the built web app, so the whole product is one Node service. `render.yaml` is a [Render](https://render.com) Blueprint for the free plan:
 
 1. Push this repo, then in Render choose **New > Blueprint** and select it (or create a Web Service with build command `npm run build:deploy` and start command `npm start`).
-2. Optional: set `VITE_CESIUM_ION_TOKEN` for real 3D buildings (see above), then redeploy.
+2. Set `VITE_CESIUM_ION_TOKEN` (see above) for the real 3D world, then redeploy. It is baked in at build time.
 
 Notes for the free plan: the service sleeps after ~15 minutes idle (the first request takes about a minute to wake it), and its disk is not persistent, so pilots, scores and captured media reset on each restart or redeploy. Move to a database and object storage before real use.
 

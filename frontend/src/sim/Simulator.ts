@@ -426,6 +426,7 @@ export class Simulator {
   }
 
   private frame = (now: number) => {
+    if (this.disposed) return
     this.raf = requestAnimationFrame(this.frame)
     const dt = Math.min(0.05, (now - this.lastFrame) / 1000)
     this.lastFrame = now

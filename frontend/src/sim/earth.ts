@@ -31,6 +31,9 @@ export interface EarthCallbacks {
 const GOOGLE_3D_TILES_ASSET = 2275207
 const SAMPLE_ATTEMPTS = 4
 
+/** 'cesium' = World Terrain + Bing imagery + OSM Buildings; 'google' = Google Photorealistic 3D Tiles. */
+const WORLD_SOURCE = import.meta.env.VITE_WORLD_SOURCE === 'google' ? 'google' : 'cesium'
+
 export const CESIUM_TOKEN = (import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined)?.trim()
 export const HAS_PHOTOREAL = Boolean(CESIUM_TOKEN)
 
@@ -54,9 +57,11 @@ export class Earth {
   private enu: CesiumNS.Matrix4
   private padReady = false
   private remaining = 0
+  private globeRemaining = 0
   private peak = 0
   private frames = 0
   private lastDone = false
+  private everReady = false
   private destroyed = false
 
   // Scratch values reused every frame.
@@ -114,6 +119,7 @@ export class Earth {
     const C = await import('cesium')
     const earth = new Earth(C, container, location, cb)
     await earth.start()
+    if (import.meta.env.DEV) Object.assign(window, { __earth: earth })
     return earth
   }
 
@@ -124,6 +130,10 @@ export class Earth {
     if (CESIUM_TOKEN) {
       try {
         C.Ion.defaultAccessToken = CESIUM_TOKEN
+        if (WORLD_SOURCE === 'cesium') {
+          await this.useCesiumWorld()
+          return
+        }
         const tileset = await C.Cesium3DTileset.fromIonAssetId(GOOGLE_3D_TILES_ASSET, {
           // Lower error = sharper tiles when the drone is only a few metres up.
           maximumScreenSpaceError: 6,
@@ -143,6 +153,42 @@ export class Earth {
       }
     }
     this.useSatellite()
+  }
+
+  /**
+   * Cesium's own data: World Terrain (real elevation), Bing aerial imagery (sharp, about 0.3 m per
+   * pixel in cities) and OSM Buildings (every mapped building extruded to its real height).
+   */
+  private async useCesiumWorld() {
+    const C = this.C
+    const scene = this.widget.scene
+    const terrain = await C.createWorldTerrainAsync()
+    const imagery = await C.IonImageryProvider.fromAssetId(2)
+    const buildings = await C.createOsmBuildingsAsync()
+    if (this.destroyed) return
+
+    scene.terrainProvider = terrain
+    this.widget.imageryLayers.addImageryProvider(imagery)
+    scene.primitives.add(buildings)
+    scene.globe.tileLoadProgressEvent.addEventListener((n) => {
+      this.globeRemaining = n
+    })
+    buildings.loadProgress.addEventListener((pending, processing) => {
+      this.remaining = pending + processing
+    })
+    this.tileset = buildings
+    this.setMode('photoreal')
+
+    try {
+      const [p] = await C.sampleTerrainMostDetailed(terrain, [
+        C.Cartographic.fromDegrees(this.location.pad.lon, this.location.pad.lat),
+      ])
+      this.setFrame(Number.isFinite(p?.height) ? p.height : 0)
+    } catch (err) {
+      console.warn('Terrain height sample failed, using 0:', err)
+      this.setFrame(0)
+    }
+    this.padReady = true
   }
 
   private useSatellite() {
@@ -202,14 +248,26 @@ export class Earth {
     return C.Transforms.eastNorthUpToFixedFrame(origin)
   }
 
+  groundHeight = 0
+
   private setFrame(height: number) {
+    this.groundHeight = height
     this.enu = this.buildFrame(height)
+  }
+
+  /** Debug: read the 3D tiles' height at the pad right now (null if not loaded yet). */
+  probeGround(): number | null {
+    const p = this.widget.scene.sampleHeight(
+      this.C.Cartographic.fromDegrees(this.location.pad.lon, this.location.pad.lat),
+    )
+    return p === undefined || !Number.isFinite(p) ? null : p
   }
 
   // --- Per frame -------------------------------------------------------------------------------
 
   /** Match the Cesium camera to the Three.js camera (same position, direction, up and field of view). */
   syncCamera(three: THREE.PerspectiveCamera) {
+    if (this.destroyed) return
     const C = this.C
     const camera = this.widget.camera
     three.getWorldDirection(dir)
@@ -249,11 +307,18 @@ export class Earth {
     this.widget.render()
     this.frames++
 
-    const settled = this.tileset ? this.tileset.tilesLoaded : this.widget.scene.globe.tilesLoaded
-    this.peak = Math.max(this.peak, this.remaining)
-    const done = this.mode !== 'loading' && this.padReady && settled && this.frames > 8
+    const globe = this.widget.scene.globe
+    const settled = this.tileset
+      ? this.tileset.tilesLoaded && (!globe.show || globe.tilesLoaded)
+      : globe.tilesLoaded
+    const remaining = this.remaining + this.globeRemaining
+    this.peak = Math.max(this.peak, remaining)
+    // Once the world has been ready, it stays ready: tiles keep streaming as the drone moves.
+    if (this.mode !== 'loading' && this.padReady && settled && this.frames > 8)
+      this.everReady = true
+    const done = this.everReady
     const total = Math.max(1, this.peak)
-    const loaded = done ? total : Math.min(total - 1, Math.max(0, this.peak - this.remaining))
+    const loaded = done ? total : Math.min(total - 1, Math.max(0, this.peak - remaining))
     if (done !== this.lastDone || (!done && this.frames % 6 === 0)) {
       this.lastDone = done
       this.cb.onProgress({ loaded, failed: 0, total })
