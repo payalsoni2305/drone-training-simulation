@@ -37,7 +37,7 @@ Goal: a learner can open the app, enter a name, work through guided lessons, fly
 
 ### How to run
 
-Optional, for real 3D buildings and terrain: create a free token at [ion.cesium.com](https://ion.cesium.com), add the asset **Google Photorealistic 3D Tiles** in its Asset Depot, then put the token in `frontend/.env` (copy `frontend/.env.example`) as `VITE_CESIUM_ION_TOKEN`. Without it the app uses satellite imagery.
+For real terrain, aerial imagery and 3D buildings: create a free token at [ion.cesium.com](https://ion.cesium.com) and put it in `frontend/.env` (copy `frontend/.env.example`) as `VITE_CESIUM_ION_TOKEN`. The default world uses Cesium World Terrain, Bing aerial imagery and OpenStreetMap Buildings, all included with the token. Without a token the app falls back to satellite imagery. On Render, set the same variable and redeploy, because it is baked in at build time.
 
 ```bash
 npm run install:all      # one time, from the project root
