@@ -9,9 +9,14 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "test": "npm --prefix backend test && npm --prefix frontend test",
-    "build": "npm --prefix frontend run build"
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix backend start",
+    "build:deploy": "npm --prefix backend install && npm --prefix frontend install --include=dev && npm run build"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

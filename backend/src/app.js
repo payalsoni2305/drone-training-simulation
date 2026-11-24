@@ -60,6 +60,7 @@ class HttpError extends Error {
  *   logger?: boolean,
  *   tileUrl?: string,
  *   fetchImpl?: typeof fetch,
+ *   staticDir?: string,
  * }} opts
  */
 export function createApp({
@@ -69,12 +70,33 @@ export function createApp({
   logger = true,
   tileUrl = '',
   fetchImpl,
+  staticDir = '',
 }) {
   const store = new Store(dataDir)
   const app = express()
 
   app.disable('x-powered-by')
-  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      // The page loads CesiumJS (web workers, WebAssembly, 3D tiles over https) and records
+      // video from a canvas, so those need explicit permission. Everything else is same-origin.
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'blob:'],
+          workerSrc: ["'self'", 'blob:'],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+          mediaSrc: ["'self'", 'blob:'],
+          fontSrc: ["'self'", 'data:'],
+          connectSrc: ["'self'", 'https:', 'data:', 'blob:'],
+          objectSrc: ["'none'"],
+          upgradeInsecureRequests: null,
+        },
+      },
+    }),
+  )
   app.use(cors({ origin: corsOrigins }))
   if (logger) app.use(morgan('dev'))
   app.use(express.json({ limit: '100kb' }))
@@ -187,6 +209,14 @@ export function createApp({
   })
 
   app.use('/api', api)
+
+  // Production: serve the built web app from the same server (one deployable service).
+  if (staticDir && fs.existsSync(path.join(staticDir, 'index.html'))) {
+    app.use(express.static(staticDir, { index: false, maxAge: '1h' }))
+    app.get(/^\/(?!api\/|media\/).*/, (_req, res) => {
+      res.sendFile(path.join(staticDir, 'index.html'))
+    })
+  }
 
   app.use((_req, _res, next) => next(new HttpError(404, 'Not found')))
 

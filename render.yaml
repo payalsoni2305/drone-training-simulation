@@ -1,0 +1,16 @@
+# Render Blueprint: one free web service. Express serves both the API and the built web app.
+services:
+  - type: web
+    name: drone-simulation
+    runtime: node
+    plan: free
+    buildCommand: npm run build:deploy
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.21.1
+      # Optional: free token from https://ion.cesium.com for real 3D buildings. It is baked into
+      # the web app at build time, so redeploy after changing it.
+      - key: VITE_CESIUM_ION_TOKEN
+        sync: false

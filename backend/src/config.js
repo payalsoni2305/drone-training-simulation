@@ -18,4 +18,6 @@ export const config = {
     process.env.TILE_URL ??
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 100),
+  // Built frontend, served by Express when it exists (production).
+  staticDir: path.resolve(root, process.env.STATIC_DIR ?? '../frontend/dist'),
 }

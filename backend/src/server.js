@@ -6,6 +6,7 @@ const { app } = createApp({
   corsOrigins: config.corsOrigins,
   maxUploadMb: config.maxUploadMb,
   tileUrl: config.tileUrl,
+  staticDir: config.staticDir,
 })
 
 const server = app.listen(config.port, () => {

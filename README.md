@@ -46,3 +46,14 @@ The real world is drawn by CesiumJS. For real 3D buildings and terrain (Google P
 | `C` | Chase view / drone camera |
 | `P` / `V` | Photo / start-stop video |
 | `Esc`, `Backspace`, `M`, `H` | Pause, restart lesson, mute, controls guide |
+
+## Deploy (free)
+
+The backend serves the built web app, so the whole product is one Node service. `render.yaml` is a [Render](https://render.com) Blueprint for the free plan:
+
+1. Push this repo, then in Render choose **New > Blueprint** and select it (or create a Web Service with build command `npm run build:deploy` and start command `npm start`).
+2. Optional: set `VITE_CESIUM_ION_TOKEN` for real 3D buildings (see above), then redeploy.
+
+Notes for the free plan: the service sleeps after ~15 minutes idle (the first request takes about a minute to wake it), and its disk is not persistent, so pilots, scores and captured media reset on each restart or redeploy. Move to a database and object storage before real use.
+
+Locally, `npm run build` then `npm start` serves everything on http://localhost:4000.
