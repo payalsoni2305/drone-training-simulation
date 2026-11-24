@@ -5,8 +5,9 @@ import type { ResolvedLocation } from './locations'
 /**
  * The real world, drawn by CesiumJS underneath our Three.js layer (drone, rings, markers).
  *
- *  - `photoreal`: Google Photorealistic 3D Tiles (real buildings and terrain) streamed through
- *    Cesium ion. Needs VITE_CESIUM_ION_TOKEN (free) in frontend/.env.
+ *  - `photoreal`: Google Photorealistic 3D Tiles (real buildings, trees and terrain) streamed
+ *    through Cesium ion, or Cesium World Terrain + Bing + OSM Buildings if those fail. Needs
+ *    VITE_CESIUM_ION_TOKEN (free) in frontend/.env.
  *  - `satellite`: Esri satellite imagery draped on the globe, used when there is no token or
  *    the 3D tiles cannot be loaded.
  *
@@ -31,8 +32,8 @@ export interface EarthCallbacks {
 const GOOGLE_3D_TILES_ASSET = 2275207
 const SAMPLE_ATTEMPTS = 4
 
-/** 'cesium' = World Terrain + Bing imagery + OSM Buildings; 'google' = Google Photorealistic 3D Tiles. */
-const WORLD_SOURCE = import.meta.env.VITE_WORLD_SOURCE === 'google' ? 'google' : 'cesium'
+/** 'google' (default) = Google Photorealistic 3D Tiles; 'cesium' = World Terrain + Bing + OSM Buildings. */
+const WORLD_SOURCE = import.meta.env.VITE_WORLD_SOURCE === 'cesium' ? 'cesium' : 'google'
 
 export const CESIUM_TOKEN = (import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined)?.trim()
 export const HAS_PHOTOREAL = Boolean(CESIUM_TOKEN)
@@ -128,31 +129,39 @@ export class Earth {
   private async start() {
     const C = this.C
     if (CESIUM_TOKEN) {
-      try {
-        C.Ion.defaultAccessToken = CESIUM_TOKEN
-        if (WORLD_SOURCE === 'cesium') {
-          await this.useCesiumWorld()
+      C.Ion.defaultAccessToken = CESIUM_TOKEN
+      // Photorealistic Google tiles first; Cesium's own terrain + imagery + buildings if they fail.
+      const sources =
+        WORLD_SOURCE === 'cesium'
+          ? [this.useCesiumWorld]
+          : [this.useGoogleWorld, this.useCesiumWorld]
+      for (const source of sources) {
+        try {
+          await source.call(this)
           return
+        } catch (err) {
+          console.error('World source unavailable, trying the next one:', err)
         }
-        const tileset = await C.Cesium3DTileset.fromIonAssetId(GOOGLE_3D_TILES_ASSET, {
-          // Lower error = sharper tiles when the drone is only a few metres up.
-          maximumScreenSpaceError: 6,
-        })
-        if (this.destroyed) return
-        this.widget.scene.globe.show = false
-        this.widget.scene.primitives.add(tileset)
-        tileset.loadProgress.addEventListener((pending, processing) => {
-          this.remaining = pending + processing
-        })
-        this.tileset = tileset
-        this.setMode('photoreal')
-        void this.findGroundHeight()
-        return
-      } catch (err) {
-        console.error('Photorealistic 3D tiles unavailable:', err)
       }
     }
     this.useSatellite()
+  }
+
+  /** Google Photorealistic 3D Tiles: real photogrammetry of buildings, trees and roads. */
+  private async useGoogleWorld() {
+    const tileset = await this.C.Cesium3DTileset.fromIonAssetId(GOOGLE_3D_TILES_ASSET, {
+      // Lower error = sharper tiles when the drone is only a few metres up.
+      maximumScreenSpaceError: 6,
+    })
+    if (this.destroyed) return
+    this.widget.scene.globe.show = false
+    this.widget.scene.primitives.add(tileset)
+    tileset.loadProgress.addEventListener((pending, processing) => {
+      this.remaining = pending + processing
+    })
+    this.tileset = tileset
+    this.setMode('photoreal')
+    void this.findGroundHeight()
   }
 
   /**

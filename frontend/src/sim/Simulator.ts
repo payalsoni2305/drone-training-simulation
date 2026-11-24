@@ -80,7 +80,8 @@ export interface SimCallbacks {
 const STEP = 1 / 120
 const GIMBAL_RATE = (45 * Math.PI) / 180 // rad/s
 const ZOOM_RATE = 1.2 // e-folds per second
-const MAX_ALTITUDE = 60
+// 120 m (400 ft) is the usual legal ceiling for small drones; real imagery looks best up there.
+const MAX_ALTITUDE = 120
 const HUD_INTERVAL_MS = 66
 
 function pickVideoType(): string | undefined {
@@ -148,6 +149,7 @@ export class Simulator {
     this.location = location
     this.cb = callbacks
     this.runner = new LessonRunner(lesson, location)
+    if (import.meta.env.DEV) Object.assign(window, { __sim: this })
 
     container.style.position = 'absolute'
     this.renderer = new THREE.WebGLRenderer({
