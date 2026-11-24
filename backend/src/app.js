@@ -79,12 +79,13 @@ export function createApp({
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
-      // The page loads CesiumJS (web workers, WebAssembly, 3D tiles over https) and records
-      // video from a canvas, so those need explicit permission. Everything else is same-origin.
+      // The page loads CesiumJS (web workers, WebAssembly, 3D tiles over https; it also needs
+      // 'unsafe-eval') and records video from a canvas, so those need explicit permission.
+      // Everything else is same-origin.
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'blob:'],
+          scriptSrc: ["'self'", "'unsafe-eval'", 'blob:'],
           workerSrc: ["'self'", 'blob:'],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'blob:', 'https:'],

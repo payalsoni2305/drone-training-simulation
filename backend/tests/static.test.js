@@ -45,6 +45,7 @@ describe('serving the built web app', () => {
   it('sends a content security policy that allows Cesium workers', async () => {
     const res = await request(app).get('/')
     expect(res.headers['content-security-policy']).toMatch(/worker-src 'self' blob:/)
+    expect(res.headers['content-security-policy']).toMatch(/script-src [^;]*'unsafe-eval'/)
     expect(res.headers['content-security-policy']).not.toMatch(/upgrade-insecure-requests/)
   })
 })
