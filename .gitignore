@@ -48,3 +48,9 @@ Thumbs.db
 *.mov
 *.wmv
 
+
+# Drone Training Simulator
+.env
+*.log
+frontend/public/cesium
+backend/data

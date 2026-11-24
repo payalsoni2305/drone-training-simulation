@@ -1,0 +1,25 @@
+{
+  "name": "drone-sim-backend",
+  "version": "0.1.0",
+  "description": "Express API for the Drone Training Simulator",
+  "main": "src/server.js",
+  "scripts": {
+    "test": "vitest run",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "type": "module",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "morgan": "^1.12.1",
+    "multer": "^2.5.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.2",
+    "vitest": "^5.1.1"
+  }
+}
