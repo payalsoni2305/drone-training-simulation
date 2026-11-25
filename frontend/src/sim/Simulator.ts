@@ -14,6 +14,7 @@ import {
   forwardVector,
   hitsObstacle,
   horizontalSpeed,
+  PHYSICS,
   stepDrone,
 } from './physics'
 import type { CameraMode, ControlInput, DroneState, SimEvent } from './types'
@@ -29,6 +30,8 @@ export interface HudState {
   armed: boolean
   onGround: boolean
   altitude: number
+  /** Height above the ground, roof or treetop under the drone. */
+  heightAboveGround: number
   speed: number
   verticalSpeed: number
   battery: number
@@ -83,6 +86,10 @@ const ZOOM_RATE = 1.2 // e-folds per second
 // 120 m (400 ft) is the usual legal ceiling for small drones; real imagery looks best up there.
 const MAX_ALTITUDE = 120
 const HUD_INTERVAL_MS = 66
+/** Seconds between real-ground height samples (each one is a small render pass in Cesium). */
+const GROUND_SAMPLE_INTERVAL = 0.08
+/** Around the pad the ground is the pad itself (y = 0), so landings there stay exact. */
+const PAD_FLAT_RADIUS = PAD.radius + 3
 
 function pickVideoType(): string | undefined {
   const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
@@ -128,6 +135,8 @@ export class Simulator {
   private finished = false
   private warnedBattery = new Set<number>()
   private warnedCeiling = false
+  private warnedRange = false
+  private groundTimer = 0
   private chasePos = new THREE.Vector3()
   private chaseReady = false
 
@@ -171,7 +180,7 @@ export class Simulator {
       pointerEvents: 'none',
     })
 
-    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 900)
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 4000)
     this.world = buildWorld(lesson, location)
     Earth.create(container, location, {
       onProgress: (p) => {
@@ -245,6 +254,8 @@ export class Simulator {
     this.accumulator = 0
     this.warnedBattery.clear()
     this.warnedCeiling = false
+    this.warnedRange = false
+    this.groundTimer = 0
     this.syncWorldProgress()
     this.setStatus('flying')
   }
@@ -439,8 +450,9 @@ export class Simulator {
     else this.input.update(0)
 
     // A crashed drone drops to the ground so the wreck rests there.
-    if (this.drone.crashed && this.drone.position.y > 0) {
-      this.drone.position.y = Math.max(0, this.drone.position.y - 9 * dt)
+    const wreck = this.drone
+    if (wreck.crashed && wreck.position.y > wreck.groundHeight) {
+      wreck.position.y = Math.max(wreck.groundHeight, wreck.position.y - 9 * dt)
     }
 
     this.updateVisuals(dt, controls)
@@ -466,6 +478,8 @@ export class Simulator {
       Math.min(MAX_ZOOM, this.zoom * Math.exp(this.input.zoom * ZOOM_RATE * dt)),
     )
 
+    this.sampleGround(dt)
+
     const events: SimEvent[] = []
     this.accumulator += dt
     while (this.accumulator >= STEP) {
@@ -479,6 +493,17 @@ export class Simulator {
           this.warnedCeiling = true
           this.toast('warn', `Altitude limit: ${MAX_ALTITUDE} m`)
         }
+      }
+
+      // stepDrone holds the drone at the geofence; warn once each time it reaches it.
+      const range = Math.hypot(d.position.x, d.position.z)
+      if (range >= PHYSICS.maxRange - 0.01) {
+        if (!this.warnedRange) {
+          this.warnedRange = true
+          this.toast('warn', `Range limit: ${PHYSICS.maxRange} m from the pad. Fly back.`)
+        }
+      } else if (range < PHYSICS.maxRange * 0.9) {
+        this.warnedRange = false
       }
 
       if (!d.crashed && !d.onGround) {
@@ -558,6 +583,21 @@ export class Simulator {
     c.updateProjectionMatrix()
   }
 
+  /** Track the height of the real ground (terrain, roofs, trees) under the drone. */
+  private sampleGround(dt: number) {
+    this.groundTimer -= dt
+    if (this.groundTimer > 0) return
+    this.groundTimer = GROUND_SAMPLE_INTERVAL
+    const d = this.drone
+    if (Math.hypot(d.position.x - PAD.x, d.position.z - PAD.z) < PAD_FLAT_RADIUS) {
+      d.groundHeight = 0
+      return
+    }
+    const g = this.earth?.groundAt(d.position.x, d.position.z)
+    // Keep the last value where nothing has loaded yet.
+    if (g != null) d.groundHeight = g
+  }
+
   private updateVisuals(dt: number, controls: ControlInput) {
     const d = this.drone
     this.model.sync(d)
@@ -571,6 +611,7 @@ export class Simulator {
     // Sun follows the drone so the shadow map stays sharp where it matters.
     this.world.sun.position.set(d.position.x + 40, 70, d.position.z + 25)
     this.world.sun.target.position.set(d.position.x, 0, d.position.z)
+    this.world.follow(d.position.x, d.position.z, d.groundHeight)
     this.world.update(this.time)
 
     this.model.group.visible = this.cameraMode === 'chase'
@@ -584,7 +625,7 @@ export class Simulator {
       const f = forwardVector(d.yaw)
       const desired = new THREE.Vector3(
         d.position.x - f.x * 5.5,
-        Math.max(1.2, d.position.y + 2.2),
+        Math.max(d.groundHeight + 1.2, d.position.y + 2.2),
         d.position.z - f.z * 5.5,
       )
       if (!this.chaseReady) {
@@ -646,6 +687,7 @@ export class Simulator {
       armed: d.armed,
       onGround: d.onGround,
       altitude: d.position.y,
+      heightAboveGround: d.position.y - d.groundHeight,
       speed: horizontalSpeed(d),
       verticalSpeed: d.velocity.y,
       battery: d.battery,

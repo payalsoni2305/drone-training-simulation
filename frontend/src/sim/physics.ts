@@ -17,7 +17,10 @@ export const PHYSICS = {
   drag: 0.8,
   crashVerticalSpeed: 4,
   crashHorizontalSpeed: 6,
-  maxRange: 120,
+  // Geofence radius (m) around the launch pad: room to explore well beyond the landmark.
+  maxRange: 1500,
+  // Ground this far above the drone means it flew into a wall, not onto a surface.
+  wallStep: 0.5,
   batteryBase: 0.08, // % per second while armed
   batteryPerSpeed: 0.015,
   batteryClimb: 0.02,
@@ -34,6 +37,7 @@ export function createDroneState(): DroneState {
     onGround: true,
     crashed: false,
     battery: 100,
+    groundHeight: 0,
   }
 }
 
@@ -50,11 +54,17 @@ export function horizontalSpeed(s: DroneState): number {
 }
 
 function resolveGround(s: DroneState, events: SimEvent[]) {
-  if (s.position.y <= 0) {
-    if (!s.onGround) {
+  const ground = s.groundHeight
+  if (s.position.y <= ground) {
+    if (!s.onGround && s.position.y < ground - PHYSICS.wallStep) {
+      s.crashed = true
+      s.armed = false
+      s.velocity = { x: 0, y: 0, z: 0 }
+      events.push({ type: 'crash', reason: 'Flew into a building or the ground' })
+    } else if (!s.onGround) {
       const impact = Math.max(0, -s.velocity.y)
       const hs = horizontalSpeed(s)
-      s.position.y = 0
+      s.position.y = ground
       s.velocity.y = 0
       s.onGround = true
       s.pitch = 0
@@ -82,9 +92,12 @@ function resolveGround(s: DroneState, events: SimEvent[]) {
         })
       }
     } else {
-      s.position.y = 0
+      s.position.y = ground
       if (s.velocity.y < 0) s.velocity.y = 0
     }
+  } else if (s.onGround && s.velocity.y <= 0) {
+    // Resting on the ground while its measured height drops a little: stay on it.
+    s.position.y = ground
   } else if (s.onGround) {
     s.onGround = false
     events.push({ type: 'liftoff' })

@@ -12,7 +12,7 @@ Goal: a learner can open the app, enter a name, work through guided lessons, fly
 
 | Area | What is in it |
 |------|---------------|
-| **Flight** | Beginner-friendly "angle mode" quadcopter model: self-levelling, altitude hold, drag, battery drain, hard-landing and obstacle crashes, 120 m range limit, 120 m altitude limit |
+| **Flight** | Beginner-friendly "angle mode" quadcopter model: self-levelling, altitude hold, drag, battery drain, hard-landing and obstacle crashes, 1.5 km range limit (geofence), 120 m altitude limit |
 | **Keyboard control** | Keys become smooth analogue "sticks" (ramped input). Hold `Space` to arm like a real transmitter. Full guide in-app (`H`) |
 | **Views** | Chase camera and drone camera (FPV) with a centre reticle. On-screen stick indicators show what the keys are doing |
 | **Camera** | Gimbal tilt (`R`/`F`), zoom 1–4× (`Z`/`X`), photo (`P`), video (`V`). Photos are taken from the drone camera without the drone body or guide markers |

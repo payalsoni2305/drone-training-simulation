@@ -17,7 +17,7 @@ export interface ControlInput {
 }
 
 export interface DroneState {
-  /** World position in metres. `y` is the height above ground. */
+  /** World position in metres. `y` is the height above the launch pad. */
   position: Vec3
   velocity: Vec3
   /** Radians. 0 faces -Z; positive turns left (counter-clockwise from above). */
@@ -30,6 +30,8 @@ export interface DroneState {
   crashed: boolean
   /** Percent, 0..100 */
   battery: number
+  /** Height (m, above the pad) of the real ground, roof or treetop under the drone. */
+  groundHeight: number
 }
 
 export interface CameraInfo {

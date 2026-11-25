@@ -22,6 +22,8 @@ export interface World {
   helpers: THREE.Group
   /** Colour the waypoint rings and show the marker over the active photo subject. */
   setProgress(p: { waypointsDone: number; waypointActive: boolean; subject: number | null }): void
+  /** Keep shadow-catching ground under the drone (call each frame with its position). */
+  follow(x: number, z: number, groundY: number): void
   update(time: number): void
   dispose(): void
 }
@@ -92,7 +94,7 @@ export function buildWorld(lesson: LessonDef, location: ResolvedLocation): World
 
   // Geofence ring
   const fence = new THREE.Mesh(
-    new THREE.RingGeometry(PHYSICS.maxRange - 0.4, PHYSICS.maxRange, 128),
+    new THREE.RingGeometry(PHYSICS.maxRange - 2, PHYSICS.maxRange, 512),
     new THREE.MeshBasicMaterial({
       color: 0xff5a4a,
       transparent: true,
@@ -175,6 +177,9 @@ export function buildWorld(lesson: LessonDef, location: ResolvedLocation): World
       state.waypointActive = p.waypointActive
       state.subject = p.subject
       apply()
+    },
+    follow(x, z, groundY) {
+      shadowCatcher.position.set(x, groundY + 0.015, z)
     },
     update(time) {
       const pulse = 1 + Math.sin(time * 4) * 0.08

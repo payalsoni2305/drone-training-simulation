@@ -50,6 +50,10 @@ export function Hud({ hud, title, toasts }: { hud: HudState; title: string; toas
             <span>ALT</span>
             <b>{hud.altitude.toFixed(1)} m</b>
           </div>
+          <div title="Height above the ground, roof or trees below">
+            <span>AGL</span>
+            <b>{hud.heightAboveGround.toFixed(1)} m</b>
+          </div>
           <div>
             <span>SPEED</span>
             <b>{(hud.speed * 3.6).toFixed(0)} km/h</b>

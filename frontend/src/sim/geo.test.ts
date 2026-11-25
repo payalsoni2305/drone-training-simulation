@@ -59,7 +59,7 @@ describe('locations', () => {
         expect(dist).toBeLessThan(105)
       })
 
-      it('keeps every subject within the 120 m flight range', () => {
+      it('keeps every subject close to the pad (well inside the flight range)', () => {
         for (const s of loc.subjects) expect(Math.hypot(s.aim.x, s.aim.z)).toBeLessThan(118)
       })
 

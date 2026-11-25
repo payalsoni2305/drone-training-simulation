@@ -56,6 +56,7 @@ export class Earth {
 
   private tileset: CesiumNS.Cesium3DTileset | null = null
   private enu: CesiumNS.Matrix4
+  private enuInverse: CesiumNS.Matrix4
   private padReady = false
   private remaining = 0
   private globeRemaining = 0
@@ -70,6 +71,8 @@ export class Earth {
   private readonly dirE: CesiumNS.Cartesian3
   private readonly upE: CesiumNS.Cartesian3
   private readonly tmp: CesiumNS.Cartesian3
+  private readonly groundPos: CesiumNS.Cartesian3
+  private readonly groundCarto: CesiumNS.Cartographic
 
   private constructor(
     C: Cesium,
@@ -107,7 +110,10 @@ export class Earth {
     this.dirE = new C.Cartesian3()
     this.upE = new C.Cartesian3()
     this.tmp = new C.Cartesian3()
+    this.groundPos = new C.Cartesian3()
+    this.groundCarto = new C.Cartographic()
     this.enu = this.buildFrame(0)
+    this.enuInverse = C.Matrix4.inverseTransformation(this.enu, new C.Matrix4())
   }
 
   static async create(
@@ -262,6 +268,7 @@ export class Earth {
   private setFrame(height: number) {
     this.groundHeight = height
     this.enu = this.buildFrame(height)
+    this.enuInverse = this.C.Matrix4.inverseTransformation(this.enu, this.enuInverse)
   }
 
   /** Debug: read the 3D tiles' height at the pad right now (null if not loaded yet). */
@@ -270,6 +277,26 @@ export class Earth {
       this.C.Cartographic.fromDegrees(this.location.pad.lon, this.location.pad.lat),
     )
     return p === undefined || !Number.isFinite(p) ? null : p
+  }
+
+  /**
+   * Height (local y, metres above the pad) of the real surface at local (x, z): terrain, roofs and
+   * trees of the loaded 3D world. Null in satellite mode (flat) or where nothing has loaded yet.
+   */
+  groundAt(x: number, z: number): number | null {
+    const scene = this.widget.scene
+    if (this.destroyed || this.mode !== 'photoreal' || !this.padReady) return null
+    if (!scene.sampleHeightSupported) return null
+    const C = this.C
+    C.Matrix4.multiplyByPoint(this.enu, C.Cartesian3.fromElements(x, -z, 0, this.tmp), this.groundPos)
+    const carto = C.Cartographic.fromCartesian(this.groundPos, undefined, this.groundCarto)
+    if (!carto) return null
+    const h = scene.sampleHeight(carto)
+    if (h === undefined || !Number.isFinite(h)) return null
+    carto.height = h
+    // Back into the local frame, so Earth's curvature over a long flight is accounted for.
+    C.Cartographic.toCartesian(carto, undefined, this.groundPos)
+    return C.Matrix4.multiplyByPoint(this.enuInverse, this.groundPos, this.tmp).z
   }
 
   // --- Per frame -------------------------------------------------------------------------------

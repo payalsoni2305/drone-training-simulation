@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDroneState, hitsObstacle, stepDrone } from './physics'
+import { createDroneState, hitsObstacle, PHYSICS, stepDrone } from './physics'
 import type { ControlInput } from './types'
 
 const idle: ControlInput = { throttle: 0, yaw: 0, pitch: 0, roll: 0 }
@@ -63,6 +63,38 @@ describe('drone physics', () => {
     s.armed = true
     run(s, idle, 5)
     expect(s.battery).toBeLessThan(100)
+  })
+
+  it('flies well past 120 m but stops at the geofence', () => {
+    const s = createDroneState()
+    s.armed = true
+    s.battery = 1e6 // long flight: battery is not under test
+    run(s, { ...idle, throttle: 1 }, 2)
+    run(s, { ...idle, pitch: 1 }, 30)
+    expect(Math.hypot(s.position.x, s.position.z)).toBeGreaterThan(120)
+    run(s, { ...idle, pitch: 1 }, 300)
+    expect(Math.hypot(s.position.x, s.position.z)).toBeCloseTo(PHYSICS.maxRange, 3)
+  })
+
+  it('lands on raised ground such as a roof', () => {
+    const s = createDroneState()
+    s.armed = true
+    run(s, { ...idle, throttle: 1 }, 4)
+    s.groundHeight = 6
+    const events = run(s, { ...idle, throttle: -0.4 }, 10)
+    expect(events.some((e) => e.type === 'touchdown')).toBe(true)
+    expect(s.crashed).toBe(false)
+    expect(s.position.y).toBe(6)
+  })
+
+  it('crashes when the ground ahead rises above the drone (a wall)', () => {
+    const s = createDroneState()
+    s.armed = true
+    run(s, { ...idle, throttle: 1 }, 1)
+    s.groundHeight = s.position.y + 10
+    const events = run(s, idle, 0.1)
+    expect(events.some((e) => e.type === 'crash')).toBe(true)
+    expect(s.crashed).toBe(true)
   })
 
   it('detects obstacle collisions only below the obstacle height', () => {
